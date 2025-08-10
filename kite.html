@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Chandra Devi - Horoscope Chat</title>
+<style>
+  :root{
+    --bg: #e9f0ef;
+    --accent1: #7b6eff;
+    --accent2: #40c9a2;
+    --accent3: #00c6ff;
+  }
+  body { margin: 0; font-family: Inter, system-ui, Arial, sans-serif; background: var(--bg); display:flex; flex-direction:column; height:100vh; }
+  .header { background: linear-gradient(90deg,#0b6b5b,#075e54); color: white; padding: 12px; display: flex; align-items: center; justify-content: space-between; flex-shrink:0; }
+  .header-left { display: flex; align-items: center; }
+  .header img { width: 48px; height: 48px; border-radius: 50%; margin-right: 12px; object-fit: cover; box-shadow:0 4px 12px rgba(0,0,0,0.15); }
+  .header-info strong{ font-size:16px }
+  .status { font-size: 12px; color: #dcf8c6; }
+  .timer-popup { background: #ff5a5a; color: white; padding: 6px 12px; border-radius: 14px; font-weight: 700; animation: pulse 1s infinite; font-size: 14px; }
+  @keyframes pulse { 0%{transform:scale(1)}50%{transform:scale(1.06)}100%{transform:scale(1)} }
+
+  .small-note { font-size: 13px; color: #333; padding: 6px 12px; flex-shrink:0; background: linear-gradient(180deg, rgba(255,255,255,0.6), rgba(255,255,255,0.4)); }
+
+  .chat { flex:1; overflow-y:auto; padding: 18px 12px; display:flex; flex-direction:column; gap:10px; }
+
+  /* Modern gradient message bubbles */
+  .message { max-width:82%; padding:12px 14px; border-radius:14px; font-size:15px; line-height:1.4; word-wrap:break-word; box-shadow: 0 6px 18px rgba(20,20,20,0.06); position:relative; }
+
+  .baba { align-self:flex-start; background: linear-gradient(135deg,#ffffff 0%, #f7f9fb 100%); color:#0b1f2a; }
+  .user { align-self:flex-end; background: linear-gradient(135deg,var(--accent1), var(--accent3)); color: white; }
+
+  /* subtle animated shimmer on user bubble */
+  .user::after{
+    content: '';
+    position:absolute; left:-40%; top:-20%; width:200%; height:140%; background: radial-gradient(circle at 30% 20%, rgba(255,255,255,0.18), rgba(255,255,255,0) 15%);
+    transform: translateX(-100%) rotate(12deg);
+    transition: transform 1.2s ease-in-out;
+  }
+  .user.shimmer::after{ transform: translateX(0) rotate(12deg); }
+
+  .typing { font-style:italic; opacity:0.85; }
+
+  /* input area similar to WhatsApp */
+  .input-area { display:flex; padding:10px; background:transparent; border-top: 0; flex-shrink:0; align-items:center; }
+  .input-wrapper{ flex:1; display:flex; align-items:center; gap:8px; background: linear-gradient(90deg, rgba(255,255,255,0.9), rgba(250,250,250,0.9)); border-radius:24px; padding:6px 8px; box-shadow:0 6px 18px rgba(20,20,20,0.06); }
+  .input-wrapper input{ flex:1; border:none; outline:none; padding:10px 12px; border-radius:20px; font-size:15px; background:transparent; }
+  .send-btn{ width:44px; height:44px; border-radius:50%; display:inline-grid; place-items:center; background:linear-gradient(135deg,var(--accent1),var(--accent2)); border:none; color:white; font-size:18px; cursor:pointer; box-shadow:0 8px 22px rgba(59,53,190,0.18); }
+
+  /* particle canvas overlay positioned above input */
+  #particleCanvas{ position:fixed; pointer-events:none; left:0; bottom:84px; width:100%; height:160px; z-index:50; }
+
+  @media (max-width:600px){
+    .message{ font-size:15px }
+    .header img{ width:44px; height:44px }
+    #particleCanvas{ bottom:84px; height:140px }
+  }
+</style>
+<!-- Firebase (compat) -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+</head>
+<body>
+<div class="header">
+  <div class="header-left">
+    <img src="profile.jpg" alt="Chandra Devi" onerror="this.style.display='none'" />
+    <div class="header-info">
+      <strong>Chandra Devi (Astrologer)</strong>
+      <span class="status">● Active now</span>
+    </div>
+  </div>
+  <div class="timer-popup" id="timer">05:00</div>
+</div>
+<div class="small-note">Dhyan rahe: yeh chat samay seemit hai — jaldi jawab dein.</div>
+<canvas id="particleCanvas"></canvas>
+<div class="chat" id="chat" aria-live="polite"></div>
+<div class="input-area">
+  <div class="input-wrapper">
+    <input type="text" id="userInput" placeholder="Apna jawab yahan likho... (Hinglish)" autocomplete="off" />
+    <button id="sendBtn" class="send-btn">➤</button>
+  </div>
+</div>
+
+<script>
+// -----------------------------
+// CONFIG - replace with your own values (do NOT commit secrets to public sites)
+// -----------------------------
+const firebaseConfig = {
+  apiKey: "AIzaSyDgHFTHgwmjB9UAMYOrQGiZFX3qwmqd-GU",
+  authDomain: "astrologer-d18e5.firebaseapp.com",
+  projectId: "astrologer-d18e5",
+  storageBucket: "astrologer-d18e5.firebasestorage.app",
+  messagingSenderId: "408289216957",
+  appId: "1:408289216957:web:142f90d2e3e938e39faad4"
+};
+const OPENAI_API_KEY = "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"; // for local testing only — prefer a server proxy
+// -----------------------------
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
+const chat = document.getElementById('chat');
+const input = document.getElementById('userInput');
+const sendBtn = document.getElementById('sendBtn');
+const timerEl = document.getElementById('timer');
+const particleCanvas = document.getElementById('particleCanvas');
+const pctx = particleCanvas.getContext('2d');
+
+let sessionId = Date.now().toString();
+let timeLeft = 300; // seconds
+let ended = false;
+let waitingForReply = false;
+
+const systemPrompt = 'Tum Chandra Devi ho, ek anubhav wali astrologer jo natural, friendly Hinglish me baat karti hai. Cold reading aur jyotish ka use karke user ka bharosa jeeto.';
+let conversation = [{ role: 'system', content: systemPrompt }];
+
+const fallbackReplies = [
+  'Aaj ka din thoda unusual lag raha hai.',
+  'Mujhe lagta hai aap kisi faisle pe soch rahe ho.',
+  'Aaj kisi purane dost ka khayal aayega.'
+];
+
+// particles
+let particles = [];
+let particleAnimId = null;
+
+function resizeCanvas(){
+  particleCanvas.width = window.innerWidth;
+  particleCanvas.height = 160; // fixed height above input
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+function spawnParticle(x, y){
+  particles.push({ x, y, vx:(Math.random()-0.5)*1.6, vy: - (1 + Math.random()*2.5), life: 50+Math.random()*40, size: 2+Math.random()*3, hue: 180 + Math.random()*120 });
+}
+
+function startParticles(){
+  if (particleAnimId) return;
+  // spawn a burst near input every 80ms
+  particleAnimId = setInterval(()=>{
+    const baseX = window.innerWidth - 90; // around send button
+    const baseY = particleCanvas.height - 20;
+    for(let i=0;i<6;i++) spawnParticle(baseX + (Math.random()-0.5)*40, baseY + (Math.random()-0.5)*10);
+  }, 80);
+  renderParticles();
+}
+function stopParticles(){
+  if (particleAnimId){ clearInterval(particleAnimId); particleAnimId = null; }
+}
+
+function renderParticles(){
+  pctx.clearRect(0,0,particleCanvas.width,particleCanvas.height);
+  for(let i=particles.length-1;i>=0;i--){
+    const p = particles[i];
+    p.x += p.vx; p.y += p.vy; p.vy += 0.05; p.life -= 1;
+    pctx.beginPath();
+    pctx.fillStyle = `hsla(${p.hue},80%,60%,${Math.max(p.life/80,0)})`;
+    pctx.arc(p.x, p.y, p.size, 0, Math.PI*2);
+    pctx.fill();
+    if (p.life<=0 || p.y>particleCanvas.height+20) particles.splice(i,1);
+  }
+  requestAnimationFrame(renderParticles);
+}
+
+// append message helpers
+function appendMessage(sender, text, className){
+  const msg = document.createElement('div');
+  msg.className = 'message ' + (className || (sender==='baba'?'baba':'user'));
+  msg.innerText = text;
+  chat.appendChild(msg);
+  // add shimmer animation on new user bubble
+  if (msg.classList.contains('user')){
+    setTimeout(()=> msg.classList.add('shimmer'), 50);
+    setTimeout(()=> msg.classList.remove('shimmer'), 1600);
+  }
+  chat.scrollTop = chat.scrollHeight;
+  return msg;
+}
+function appendTyping(){
+  const el = document.createElement('div');
+  el.className = 'message baba typing';
+  el.innerText = 'Chalo, main dekh rahi hoon...';
+  chat.appendChild(el);
+  chat.scrollTop = chat.scrollHeight;
+  // start particles when typing begins
+  startParticles();
+  return el;
+}
+
+// save
+function saveMessage(sender, text){
+  db.collection('chats').doc(sessionId).collection('messages').add({ sender, text, timestamp: firebase.firestore.FieldValue.serverTimestamp() }).catch(console.error);
+}
+
+function trimConversation(maxMessages=12){ const sys=conversation[0]; conversation = [sys, ...conversation.slice(-maxMessages)]; }
+
+// core send flow
+
+let lastFallback = null;
+
+async function sendMessage(){
+  if (waitingForReply || ended) return;
+  const text = input.value.trim(); if (!text) return;
+  appendMessage('user', text, 'user'); saveMessage('user', text);
+  input.value = ''; input.disabled = true; waitingForReply = true;
+
+  conversation.push({ role:'user', content:text }); trimConversation(12);
+  const typingEl = appendTyping();
+
+  if (!OPENAI_API_KEY) {
+    // offline fallback without suffix
+    let fallback = fallbackReplies[Math.floor(Math.random() * fallbackReplies.length)];
+    // avoid repeat
+    while (fallback === lastFallback) {
+      fallback = fallbackReplies[Math.floor(Math.random() * fallbackReplies.length)];
+    }
+    lastFallback = fallback;
+
+    stopParticles();
+    if (typingEl.parentNode) typingEl.remove();
+    appendMessage('baba', fallback);
+    saveMessage('baba', fallback);
+    waitingForReply = false;
+    input.disabled = false;
+    return;
+  }
+
+  try {
+    const resp = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${OPENAI_API_KEY}` },
+      body: JSON.stringify({ model: 'gpt-3.5-turbo', messages: conversation, temperature: 0.9, max_tokens: 450 }),
+    });
+
+    if (!resp.ok) {
+      const txt = await resp.text();
+      throw new Error('OpenAI error ' + resp.status + ': ' + txt);
+    }
+
+    const data = await resp.json();
+    let reply = null;
+    if (data && Array.isArray(data.choices) && data.choices.length > 0 && data.choices[0].message && data.choices[0].message.content) {
+      reply = data.choices[0].message.content.trim();
+    }
+    if (!reply) {
+      reply = fallbackReplies[Math.floor(Math.random() * fallbackReplies.length)];
+      // avoid repeat fallback
+      while (reply === lastFallback) {
+        reply = fallbackReplies[Math.floor(Math.random() * fallbackReplies.length)];
+      }
+    }
+    lastFallback = reply;
+
+    conversation.push({ role: 'assistant', content: reply });
+    trimConversation(12);
+
+    stopParticles();
+    if (typingEl.parentNode) typingEl.remove();
+    appendMessage('baba', reply, 'baba');
+    saveMessage('baba', reply);
+  } catch (err) {
+    console.error('OpenAI call failed', err);
+
+    let fallback = fallbackReplies[Math.floor(Math.random() * fallbackReplies.length)];
+    while (fallback === lastFallback) {
+      fallback = fallbackReplies[Math.floor(Math.random() * fallbackReplies.length)];
+    }
+    lastFallback = fallback;
+
+    stopParticles();
+    if (typingEl.parentNode) typingEl.remove();
+    appendMessage('baba', fallback);
+    saveMessage('baba', fallback);
+  } finally {
+    waitingForReply = false;
+    input.disabled = ended;
+  }
+}
+
+// UI events
+sendBtn.addEventListener('click', sendMessage);
+input.addEventListener('keypress', e=>{ if (e.key==='Enter') sendMessage(); });
+// small particle burst while typing in input
+let typingBurstTimer=null;
+input.addEventListener('input', ()=>{
+  if (!particleAnimId) startParticles();
+  // spawn a few manual particles around input
+  const baseX = window.innerWidth - 90; const baseY = particleCanvas.height - 20;
+  for(let i=0;i<3;i++) spawnParticle(baseX + (Math.random()-0.5)*60, baseY + (Math.random()-0.5)*10);
+  clearTimeout(typingBurstTimer); typingBurstTimer=setTimeout(()=>{ if (!waitingForReply) stopParticles(); }, 900);
+});
+
+// timer
+function updateTimer(){ const m=Math.floor(timeLeft/60).toString().padStart(2,'0'); const s=(timeLeft%60).toString().padStart(2,'0'); timerEl.innerText=`${m}:${s}`; if (timeLeft>0) timeLeft--; else if(!ended){ ended=true; input.disabled=true; stopParticles(); appendMessage('baba','Samay samapt ho gaya hai 🙏'); }}
+setInterval(updateTimer,1000);
+
+// greeting
+setTimeout(()=> appendMessage('baba','Namaste 🙏, main Chandra Devi (Astrologer) hoon. Dhyan rahe ki yeh chat samay seemit hai ⏳. Sabse pehle apna naam batao — Hinglish me bolo.'),500);
+</script>
+</body>
+</html>
