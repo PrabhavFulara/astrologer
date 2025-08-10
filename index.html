@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title> Future dekho by Prabhav </title>
+<title>Shayari by Prabhav Baba — WhatsApp UI</title>
 <style>
   /* --- Minimal WhatsApp-style dark UI (mobile-first) --- */
   :root{
@@ -32,12 +32,60 @@
   .quick{display:flex;gap:8px;padding:8px;overflow:auto}
   .quick button{background:linear-gradient(90deg,#1a73ff,#3aa0ff);border:0;padding:8px 12px;border-radius:18px;color:#fff;font-weight:600;cursor:pointer;box-shadow:0 6px 18px rgba(10,80,200,0.18)}
 
-  /* input area fixed bottom */
-  .composer{display:flex;gap:8px;padding:10px;border-top:1px solid rgba(255,255,255,0.02);align-items:center;background:linear-gradient(180deg,transparent, rgba(255,255,255,0.01))}
-  .input{flex:1;display:flex;align-items:center;background:var(--glass);padding:8px;border-radius:24px;border:1px solid rgba(255,255,255,0.03)}
-  .input input{flex:1;border:0;background:transparent;padding:8px 10px;color:#eef2ff;outline:none;font-size:15px}
-  .send{background:linear-gradient(180deg,#60ff9e,#2ed66b);border:none;border-radius:50%;width:44px;height:44px;display:grid;place-items:center;cursor:pointer;box-shadow:0 8px 24px rgba(46,214,107,0.12)}
-  .send svg{width:18px;height:18px;fill:#041126}
+  /* input area fixed bottom with safe area for mobile */
+.composer {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  display: flex;
+  gap: 8px;
+  padding: 10px;
+  padding-bottom: calc(10px + env(safe-area-inset-bottom)); /* for iPhone & modern devices */
+  border-top: 1px solid rgba(255, 255, 255, 0.02);
+  align-items: center;
+  background: linear-gradient(180deg, transparent, rgba(255, 255, 255, 0.01));
+  z-index: 9999;
+}
+
+.input {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  background: var(--glass);
+  padding: 8px;
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.input input {
+  flex: 1;
+  border: 0;
+  background: transparent;
+  padding: 8px 10px;
+  color: #eef2ff;
+  outline: none;
+  font-size: 15px;
+}
+
+.send {
+  background: linear-gradient(180deg, #60ff9e, #2ed66b);
+  border: none;
+  border-radius: 50%;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(46, 214, 107, 0.12);
+}
+
+.send svg {
+  width: 18px;
+  height: 18px;
+  fill: #041126;
+}
+
   /* starry BG */
   #stars{position:absolute;inset:0;pointer-events:none;z-index:0;opacity:.12}
   /* small screens tweak */
@@ -49,7 +97,7 @@
 <body>
 <div class="wrap" role="application" aria-label="Shayari Chat">
   <header>
-    <img id="avatar" src="https://raw.githubusercontent.com/PrabhavFulara/astrologer/main/Prabhav.png" alt="Prabhav Baba"/>
+    <img id="avatar" src="https://i.pravatar.cc/64?img=12" alt="Prabhav Baba"/>
     <div>
       <div class="title">Prabhav Baba  </div>
       <div class="small">20+ years Astrologer • Tantrik</div>
@@ -258,5 +306,3 @@ if(GROQ_API_KEY === "YOUR_GROQ_API_KEY"){
 </script>
 </body>
 </html>
-
-
